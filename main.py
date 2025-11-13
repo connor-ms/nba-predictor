@@ -1,5 +1,5 @@
 def main():
-    print("Hello from media-bias!")
+    print("Hello from NBA-predictor!")
 
 
 if __name__ == "__main__":
