@@ -87,3 +87,9 @@ I also wanted to run UMAP on the dataset, as I found some very useful informatio
 <img src="graphs/umap.png">
 
 To be honest, I'm not totally sure what to make of this. It shows a pretty clear separation in what results in a win vs a loss (with some outliers), but I'll need to play with it more to see if there's any information it provides that I didn't already know (but I'm not very hopeful...)
+
+# Reflection
+
+Overall, I learned that this dataset is a strong foundation to continue working with. There are few duplicate or missing entries, and is sourced reliably (and ethically!). The most helpful information to come from this was learning about the relativity in what causes a win. For example, it's pretty obvious that if a team has more rebounds, assists, steals, and blocks that they have a higher chance of winning. What I think is interesting is that rebounds and assists both contribute much higher to the chance of winning than steals or blocks.
+
+One of the biggest challenges I anticipate is preventing data leakage. I feel like in a dataset like this, it will be extremely prone to leakage if I'm not careful. I also need to make sure to find a good time window of what's considered "recent", and to find a good way to perform splits (per season? per month? per every third fortnight? idk...)
