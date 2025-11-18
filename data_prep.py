@@ -1,15 +1,11 @@
 import pandas as pd
 import numpy as np
+import kagglehub
 
 # Data configuration
-GAMES_PATH = "data/Games.csv"
-TEAM_STATS_PATH = "data/TeamStatistics.csv"
-PLAYERS_PATH = "data/Players.csv"
 GAME_FEATURE_COLS_RAW = ["gameId", "gameDate", "hometeamId", "awayteamId", "result"]
-# MODEL_FEATURE_COLS = ["avg_phys", "avg_magic", "red", "green", "blue"]
-# CF_FEATURE_COLS = ["adv_id", "potion_id"]  # For collaborative filtering models
-# HYBRID_FEATURE_COLS = ["adv_id", "potion_id", "avg_phys", "avg_magic", "red", "green", "blue"]  # For hybrid models
-# TARGET_COL = "enjoyment"
+MODEL_FEATURE_COLS = ["home_efg", "away_efg", "home_tov", "away_tov", "home_orb", "away_orb", "home_ft", "away_ft"]
+TARGET_COL = "result"
 RANDOM_SEED = 42
 
 FEATURE_PATH = "data/feature_table.csv"
@@ -23,35 +19,28 @@ class RecommenderDataPrep:
     """Utility class for preparing recommender system data."""
 
     def __init__(self):
-        self.games_path = GAMES_PATH
-        self.team_stats_path = TEAM_STATS_PATH
-        self.players_path = PLAYERS_PATH
         self.feature_cols = GAME_FEATURE_COLS_RAW
-        #self.target_col = TARGET_COL
+        self.target_col = TARGET_COL
         self.random_seed = RANDOM_SEED
 
-        self.games = None
         self.train_df = None
-        self.eval_users = None
-        self.candidates_by_adv = None
-        self.relevant_by_adv = None
-        self.adv_features = None
-        self.potion_features = None
-        self.adv_info = None
+        self.test_df = None
 
     def load_and_prepare(self, create_csv = True):
         """Load data and prepare train/test splits."""
+
+        data_path = kagglehub.dataset_download("eoinamoore/historical-nba-data-and-player-box-scores")
         
         if create_csv:
             print("Creating feature table...")
             
-            games = pd.read_csv(self.games_path)
+            games = pd.read_csv(data_path + "/Games.csv")
             games = games[games["gameType"] != "Playoffs"]
             games["result"] = (games["hometeamId"] == games["winner"]).astype(int)
 
             games = games[GAME_FEATURE_COLS_RAW]
 
-            team_stats = pd.read_csv(self.team_stats_path)
+            team_stats = pd.read_csv(data_path + "/TeamStatistics.csv")
 
             team_stats_sorted = team_stats.sort_values(by="gameDate", ascending=False)
 
@@ -88,46 +77,14 @@ class RecommenderDataPrep:
         
         self.df = pd.read_csv(FEATURE_PATH)
 
+        #hacky
+        self.df = self.df.replace([np.inf, -np.inf], np.nan).dropna()
+
         self.train_df = self.df[self.df["gameDate"] < TRAIN_CUTOFF].copy()
         self.test_df = self.df[self.df["gameDate"] >= TRAIN_CUTOFF].copy()
 
-        
-        
-        # # Per-user holdout of positives
-        # train_rows = []
-        # heldout_positives = {}
-
-        # for aid, g in self.games.groupby("adv_id"):
-        #     likes = g[g["liked"] == 1]
-        #     if len(likes) >= 1:
-        #         n_hold = min(self.holdout_per_user, len(likes))
-        #         test_likes = likes.sample(n=n_hold, random_state=self.random_seed)
-        #         heldout_positives[aid] = set(test_likes["potion_id"].tolist())
-        #         train_rows.append(g.drop(test_likes.index))
-        #     else:
-        #         train_rows.append(g)
-
-        # self.train_df = pd.concat(train_rows, ignore_index=True)
-
-        # # Candidate sets
-        # self.eval_users = sorted(heldout_positives.keys())
-        # all_potions = sorted(self.games["potion_id"].unique().tolist())
-        # seen_train_by_adv = {aid: set(g["potion_id"].tolist())
-        #                     for aid, g in self.train_df.groupby("adv_id")}
-        # self.candidates_by_adv = {
-        #     aid: [pid for pid in all_potions if pid not in seen_train_by_adv.get(aid, set())]
-        #     for aid in self.eval_users
-        # }
-
-        # self.relevant_by_adv = {
-        #     aid: (heldout_positives[aid] & set(self.candidates_by_adv.get(aid, [])))
-        #     for aid in self.eval_users
-        # }
-
-        # # Feature lookups
-        # self.adv_features = self.train_df.groupby("adv_id")[["avg_phys", "avg_magic"]].first()
-        # self.potion_features = self.games.groupby("potion_id")[["red", "green", "blue"]].first()
-        # self.adv_info = self.games.groupby("adv_id")[["class", "level"]].first()
+        #largest_value = self.train_df[MODEL_FEATURE_COLS].sort_values(by="home_efg")
+        #print(f"{largest_value}")
 
     def get_rolling_stats(self, games_df, stats_df, is_home):
         results = []
@@ -162,72 +119,20 @@ class RecommenderDataPrep:
     def get_training_data(self, model_feature_cols: list):
         """Get training features and target."""
         X_train = self.train_df[model_feature_cols].astype(float)
-        y_train = self.train_df[self.target_col].astype(float)
+        y_train = self.train_df[self.target_col].astype(int)
         return X_train, y_train
-
-    def _create_cf_interactions(self, aid, candidates):
-        """Create feature matrix for collaborative filtering (IDs only)."""
-        n = len(candidates)
-        X_cand = pd.DataFrame({
-            "adv_id": [aid] * n,
-            "potion_id": candidates
-        })
-        return X_cand, candidates
-
-    def _create_content_interactions(self, candidates, adv_phys, adv_magic):
-        """Create feature matrix for content-based models (features only)."""
-        pot_feats = self.potion_features.loc[candidates][["red", "green", "blue"]].values.astype(float)
-        n = len(candidates)
-
-        X_cand = pd.DataFrame(
-            np.column_stack([
-                np.full(n, float(adv_phys)),
-                np.full(n, float(adv_magic)),
-                pot_feats
-            ]),
-            columns=["avg_phys", "avg_magic", "red", "green", "blue"]
-        )
-        return X_cand, candidates
-
-    def _create_hybrid_interactions(self, aid, candidates, adv_phys, adv_magic):
-        """Create feature matrix for hybrid models (IDs + features)."""
-        pot_feats = self.potion_features.loc[candidates][["red", "green", "blue"]].values.astype(float)
-        n = len(candidates)
-
-        X_cand = pd.DataFrame(
-            np.column_stack([
-                np.full(n, float(aid)),
-                np.array(candidates, dtype=float),
-                np.full(n, float(adv_phys)),
-                np.full(n, float(adv_magic)),
-                pot_feats
-            ]),
-            columns=["adv_id", "potion_id", "avg_phys", "avg_magic", "red", "green", "blue"]
-        )
-        return X_cand, candidates
-
-    def create_unseen_interactions(self, aid, model_feature_cols: list):
-        """Create feature matrix for unseen interactions for a given adventurer."""
-        candidates = self.candidates_by_adv[aid]
-
-        # Check if this is a CF model (only needs adv_id and potion_id)
-        if set(model_feature_cols) == {"adv_id", "potion_id"}:
-            return self._create_cf_interactions(aid, candidates)
-
-        # For hybrid or content-based models: need features
-        adv_phys, adv_magic = self.adv_features.loc[aid][["avg_phys", "avg_magic"]]
-
-        # Check if hybrid model (includes IDs + features)
-        if "adv_id" in model_feature_cols and "potion_id" in model_feature_cols:
-            return self._create_hybrid_interactions(aid, candidates, adv_phys, adv_magic)
-        else:
-            # Content-based only
-            return self._create_content_interactions(candidates, adv_phys, adv_magic)
+    
+    def get_test_data(self, model_feature_cols):
+        X_test = self.test_df[model_feature_cols]
+        return X_test
+    
+    def get_test_results(self):
+        return self.test_df[self.target_col]
 
     def get_positive_rate(self):
         """Calculate global positive rate."""
-        return self.games["liked"].mean()
+        return self.df[TARGET_COL].mean()
 
     def get_user_count(self):
         """Get total number of unique users."""
-        return self.games["adv_id"].nunique()
+        #return self.df["adv_id"].nunique()
