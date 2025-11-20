@@ -18,13 +18,15 @@ TRAIN_CUTOFF = "2025-10-02T12:00:00Z"
 class RecommenderDataPrep:
     """Utility class for preparing recommender system data."""
 
-    def __init__(self):
+    def __init__(self, evaluate):
+        self.evaluate = evaluate
         self.feature_cols = GAME_FEATURE_COLS_RAW
         self.target_col = TARGET_COL
         self.random_seed = RANDOM_SEED
 
         self.train_df = None
         self.test_df = None
+        self.game_schedule = None
 
     def load_and_prepare(self, create_csv = True):
         """Load data and prepare train/test splits."""
@@ -80,11 +82,14 @@ class RecommenderDataPrep:
         #hacky
         self.df = self.df.replace([np.inf, -np.inf], np.nan).dropna()
 
-        self.train_df = self.df[self.df["gameDate"] < TRAIN_CUTOFF].copy()
-        self.test_df = self.df[self.df["gameDate"] >= TRAIN_CUTOFF].copy()
+        self.game_schedule = pd.read_csv(data_path + "/LeagueSchedule25_26.csv")
 
-        #largest_value = self.train_df[MODEL_FEATURE_COLS].sort_values(by="home_efg")
-        #print(f"{largest_value}")
+        if self.evaluate:
+            self.train_df = self.df[self.df["gameDate"] < TRAIN_CUTOFF].copy()
+            self.test_df = self.df[self.df["gameDate"] >= TRAIN_CUTOFF].copy()
+        else:
+            self.train_df = self.df
+            
 
     def get_rolling_stats(self, games_df, stats_df, is_home):
         results = []
@@ -123,8 +128,12 @@ class RecommenderDataPrep:
         return X_train, y_train
     
     def get_test_data(self, model_feature_cols):
-        X_test = self.test_df[model_feature_cols]
-        return X_test
+        if self.evaluate:
+            X_test = self.test_df[model_feature_cols]
+            return X_test
+    
+    #def get_stats_for(self, gameId):
+
     
     def get_test_results(self):
         return self.test_df[self.target_col]

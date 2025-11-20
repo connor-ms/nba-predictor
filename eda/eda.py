@@ -5,6 +5,9 @@ import seaborn as sns
 import umap
 from sklearn.preprocessing import StandardScaler
 
+
+
+# Everything below is for the old dataset
 games = pd.read_csv('data/games.csv')
 details = pd.read_csv('data/games_details.csv')
 teams = pd.read_csv('data/teams.csv')

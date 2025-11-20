@@ -78,7 +78,7 @@ def print_report(name, y_true, y_pred, y_proba):
 
 def main():
     print("Loading and preparing data...")
-    data_prep = RecommenderDataPrep()
+    data_prep = RecommenderDataPrep(True)
     data_prep.load_and_prepare(False)
     
     models = {
