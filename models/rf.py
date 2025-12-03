@@ -20,13 +20,11 @@ class RFClassifier(BasePredictor):
 
     def fit(self, X_train: pd.DataFrame, y_train: pd.Series):
         self.model.fit(X_train, y_train)
+        print(self.model.feature_importances_)
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         return self.model.predict(X)
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         probs = self.model.predict_proba(X)
-        print("=============================")
-        print(type(probs))
-        print(probs[:5])
         return probs[:, 1]
