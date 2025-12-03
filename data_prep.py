@@ -132,16 +132,9 @@ class RecommenderDataPrep:
             X_test = self.test_df[model_feature_cols]
             return X_test
     
-    #def get_stats_for(self, gameId):
-
-    
     def get_test_results(self):
         return self.test_df[self.target_col]
 
     def get_positive_rate(self):
         """Calculate global positive rate."""
         return self.df[TARGET_COL].mean()
-
-    def get_user_count(self):
-        """Get total number of unique users."""
-        #return self.df["adv_id"].nunique()
